@@ -1,0 +1,29 @@
+aws:
+  region: us-west-1
+
+s3:
+  log_bucket: iam-trail-logs-cardell      # Default, can be overridden by S3 event
+  log_prefix: AWSLogs/
+  alert_bucket: iam-anomaly-alerts
+  alert_prefix: alerts/
+
+dynamodb:
+  baseline_table: IAMBaselineProfiles
+  processed_table: ProcessedS3Logs        # Optional for deduping processed files
+  processed_key_ttl_days: 1
+
+  promotion:
+    min_count: 3
+    max_age_days: 7
+
+polling:
+  interval_seconds: 30
+
+cleanup:
+  candidate_max_age_days: 14
+  baseline_max_age_days: 60
+  delete_missing_users: true
+
+sqs:
+  detection_queue_url: https://sqs.us-west-1.amazonaws.com/732406385148/detection_queue
+
