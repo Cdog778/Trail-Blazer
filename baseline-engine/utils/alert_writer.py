@@ -3,8 +3,8 @@ import json
 import uuid
 from datetime import datetime
 
-s3 = boto3.client("s3", region_name="us-west-1")
-ALERT_BUCKET = "iam-anomaly-alerts"
+s3 = boto3.client("s3", region_name="us-east-2")
+ALERT_BUCKET = "anomaly-alerts-84917"
 
 def write_alert(alert_type, metadata, details):
     alert = {

@@ -1,20 +1,19 @@
 aws:
-  region: us-west-1
+  region: us-east-2
 
 s3:
-  log_bucket: iam-trail-logs-cardell
+  log_bucket: cloudtrail-logs-84917
   log_prefix: AWSLogs/
-  alert_bucket: iam-anomaly-alerts
+  alert_bucket: anomaly-alerts-84917
   alert_prefix: alerts/
 
 dynamodb:
-  baseline_table: IAMBaselineProfiles
-  # promotion thresholds
+  baseline_table: BaselineData
   promotion:
-    min_count: 3           # how many times we've seen a candidate
-    max_age_days: 7        # within this many days from first_seen
+    min_count: 3
+    max_age_days: 7
   processed_table: ProcessedS3Logs
-  processed_key_ttl_days: 1  # <-- TTL configurable here
+  processed_key_ttl_days: 1
 
 polling:
   interval_seconds: 30
@@ -25,5 +24,5 @@ cleanup:
   delete_missing_users: true
 
 sqs:
-  baseline_queue_url: https://sqs.us-west-1.amazonaws.com/732406385148/baseline_queue
+  baseline_queue_url: https://sqs.us-east-2.amazonaws.com/732406385148/baseline-queue
 

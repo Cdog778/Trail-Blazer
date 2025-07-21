@@ -6,14 +6,7 @@ from datetime import datetime
 
 from utils.config_loader import load_config
 from utils.suppression import is_suppressed
-from utils.baseline import (
-    normalize_user,
-    record_candidate,
-    should_promote_candidate,
-    promote_candidate,
-    alert_promotion
-)
-from utils.alert_writer import write_alert
+from utils.baseline import normalize_user
 
 # --- Load config ---
 cfg = load_config()
@@ -21,7 +14,6 @@ REGION      = cfg["aws"]["region"]
 BUCKET      = cfg["s3"]["log_bucket"]
 QUEUE_URL   = cfg["sqs"]["baseline_queue_url"]
 TABLE_NAME  = cfg["dynamodb"]["baseline_table"]
-PROM_THRESH = cfg["dynamodb"]["promotion"]
 
 # --- AWS clients ---
 s3    = boto3.client("s3", region_name=REGION)
@@ -59,14 +51,12 @@ def process_log_file(bucket, key):
                 if not val or is_suppressed(username, val):
                     continue
 
-                # Record as candidate
-                record_candidate(username, base_key, val, table, PROM_THRESH)
-
-                # Check if candidate should be promoted
-                item = table.get_item(Key={"username": username}).get("Item", {})
-                if should_promote_candidate(item, base_key, val, PROM_THRESH):
-                    promote_candidate(username, base_key, val, table)
-                    alert_promotion(username, base_key, val, write_alert)
+                table.update_item(
+                    Key={"username": username},
+                    UpdateExpression=f"ADD {base_key} :v",
+                    ExpressionAttributeValues={":v": {"SS": [val]}}
+                )
+                print(f"[UPDATE] {username}.{base_key} += {val}", flush=True)
 
         except Exception as e:
             print(f"[ERROR] Failed to process record {i + 1}: {e}", flush=True)
