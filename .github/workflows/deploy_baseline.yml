@@ -1,0 +1,49 @@
+name: Deploy Baseline Engine
+
+on:
+  push:
+    paths:
+      - 'baseline-engine/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    env:
+      AWS_REGION: us-east-2
+      ECR_REPO: baseline-engine
+      ECS_CLUSTER: anomaly-engine-cluster
+      ECS_SERVICE: baseline-service
+      IMAGE_TAG: latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::732406385148:role/GitHubActionsDeployRole
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build and push Docker image
+        run: |
+          docker build -t $ECR_REPO:latest ./baseline-engine
+          docker tag $ECR_REPO:latest 732406385148.dkr.ecr.${AWS_REGION}.amazonaws.com/$ECR_REPO:latest
+          docker push 732406385148.dkr.ecr.${AWS_REGION}.amazonaws.com/$ECR_REPO:latest
+
+      - name: Force ECS deployment
+        run: |
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service $ECS_SERVICE \
+            --force-new-deployment \
+            --region $AWS_REGION
+
