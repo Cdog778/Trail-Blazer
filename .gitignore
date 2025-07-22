@@ -1,0 +1,16 @@
+#Terraform 
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.backup
+*.tfvars
+terraform-aws/.terraform/
+
+# AWS credentials or temp files
+*.pem
+*.key
+*.crt
+*.env
+*.zip
+
