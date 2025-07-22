@@ -1,15 +1,15 @@
 aws:
-  region: us-west-1
+  region: us-east-2
 
 s3:
-  log_bucket: iam-trail-logs-cardell      # Default, can be overridden by S3 event
+  log_bucket: cloudtrail-logs-84917      # ← matches your S3 log bucket with suffix
   log_prefix: AWSLogs/
-  alert_bucket: iam-anomaly-alerts
+  alert_bucket: anomaly-alerts-84917     # ← your detection alert bucket with suffix
   alert_prefix: alerts/
 
 dynamodb:
-  baseline_table: IAMBaselineProfiles
-  processed_table: ProcessedS3Logs        # Optional for deduping processed files
+  baseline_table: BaselineData           # ← table created in Terraform
+  processed_table: ProcessedS3Logs       # ← optional, define if you use deduplication
   processed_key_ttl_days: 1
 
   promotion:
@@ -25,5 +25,5 @@ cleanup:
   delete_missing_users: true
 
 sqs:
-  detection_queue_url: https://sqs.us-west-1.amazonaws.com/732406385148/detection_queue
+  detection_queue_url: https://sqs.us-east-2.amazonaws.com/732406385148/detection-queue
 
