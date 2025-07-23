@@ -21,3 +21,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Run the detection engine
 CMD ["python", "detection_engine.py"]
 
+# trigger deploy
