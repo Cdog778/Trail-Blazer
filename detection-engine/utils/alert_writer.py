@@ -2,9 +2,15 @@ import boto3
 import json
 import uuid
 from datetime import datetime
+from utils.config_loader import load_config
 
-s3 = boto3.client("s3", region_name="us-west-1")
-ALERT_BUCKET = "iam-anomaly-alerts"
+# Load settings from config.yaml
+cfg = load_config()
+REGION = cfg["aws"]["region"]
+ALERT_BUCKET = cfg["s3"]["alert_bucket"]
+ALERT_PREFIX = cfg["s3"].get("alert_prefix", "alerts")
+
+s3 = boto3.client("s3", region_name=REGION)
 
 def write_alert(alert_type, metadata, details):
     alert = {
@@ -17,7 +23,7 @@ def write_alert(alert_type, metadata, details):
     }
 
     today = datetime.utcnow().strftime("%Y-%m-%d")
-    file_key = f"alerts/{today}/{uuid.uuid4()}.json"
+    file_key = f"{ALERT_PREFIX}/{today}/{uuid.uuid4()}.json"
 
     try:
         s3.put_object(

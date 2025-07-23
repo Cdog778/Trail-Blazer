@@ -2,9 +2,13 @@ import boto3
 import json
 import uuid
 from datetime import datetime
+from utils.config_loader import load_config
 
-s3 = boto3.client("s3", region_name="us-east-2")
-ALERT_BUCKET = "anomaly-alerts-84917"
+cfg = load_config()
+REGION = cfg["aws"]["region"]
+ALERT_BUCKET = cfg["s3"]["alert_bucket"]
+
+s3 = boto3.client("s3", region_name=REGION)
 
 def write_alert(alert_type, metadata, details):
     alert = {
