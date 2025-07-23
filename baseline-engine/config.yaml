@@ -2,17 +2,17 @@ aws:
   region: us-east-2
 
 s3:
-  log_bucket: cloudtrail-logs-84917
+  log_bucket: cloudtrail-logs-company123        # from var.cloudtrail_bucket_name
   log_prefix: AWSLogs/
-  alert_bucket: anomaly-alerts-84917
+  alert_bucket: anomaly-alerts-company123       # from var.alert_bucket_name
   alert_prefix: alerts/
 
 dynamodb:
-  baseline_table: BaselineData
+  baseline_table: BaselineData                  # from var.baseline_table_name
   promotion:
     min_count: 3
     max_age_days: 7
-  processed_table: ProcessedS3Logs
+  processed_table: ProcessedS3Logs              # optional, if used
   processed_key_ttl_days: 1
 
 polling:

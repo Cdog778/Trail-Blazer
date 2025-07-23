@@ -2,14 +2,14 @@ aws:
   region: us-east-2
 
 s3:
-  log_bucket: cloudtrail-logs-84917      # ← matches your S3 log bucket with suffix
+  log_bucket: cloudtrail-logs-company123
   log_prefix: AWSLogs/
-  alert_bucket: anomaly-alerts-84917     # ← your detection alert bucket with suffix
+  alert_bucket: anomaly-alerts-company123
   alert_prefix: alerts/
 
 dynamodb:
-  baseline_table: BaselineData           # ← table created in Terraform
-  processed_table: ProcessedS3Logs       # ← optional, define if you use deduplication
+  baseline_table: BaselineData
+  processed_table: ProcessedS3Logs
   processed_key_ttl_days: 1
 
   promotion:
