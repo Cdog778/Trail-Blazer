@@ -1,11 +1,11 @@
-#Terraform 
-.terraform/
+# Terraform files to ignore
 *.tfstate
 *.tfstate.*
+.terraform/
+.terraform.lock.hcl
+terraform.tfvars
+terraform.tfvars.json
 crash.log
-*.backup
-*.tfvars
-terraform-aws/.terraform/
 
 # AWS credentials or temp files
 *.pem
