@@ -1,5 +1,5 @@
 resource "aws_sns_topic" "cloudtrail_events" {
-  name = "cloudtrail-log-events"
+  name = var.cloudtrail_sns_topic_name
 }
 
 data "aws_iam_policy_document" "allow_s3_publish" {

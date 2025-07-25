@@ -1,55 +1,33 @@
 resource "aws_ecs_cluster" "main" {
-  name = "anomaly-engine-cluster"
+  name = var.cluster_name
 }
 
-resource "aws_ecs_task_definition" "detection_engine" {
-  family                   = "detection-engine"
-  requires_compatibilities = ["FARGATE"]
-  network_mode             = "awsvpc"
-  cpu                      = "256"
-  memory                   = "512"
-  execution_role_arn       = aws_iam_role.ecs_execution_role.arn
-  task_role_arn            = aws_iam_role.detection_task_role.arn
+# -----------------------------------
+# CloudWatch Log Groups
+# -----------------------------------
+resource "aws_cloudwatch_log_group" "baseline" {
+  name              = "/ecs/baseline"
+  retention_in_days = 30
 
-  container_definitions = jsonencode([
-    {
-      name      = "detection"
-      image = "732406385148.dkr.ecr.us-east-2.amazonaws.com/detection-engine:latest"
-      essential = true
-      environment = [
-        { name = "QUEUE_URL", value = aws_sqs_queue.detection.id },
-        { name = "BASELINE_TABLE", value = "BaselineData" }, # can replace with variable
-        { name = "ALERT_BUCKET", value = "anomaly-alert-logs" }
-      ]
-      logConfiguration = {
-        logDriver = "awslogs",
-        options   = {
-          awslogs-group         = "/ecs/detection"
-          awslogs-region        = var.region
-          awslogs-stream-prefix = "ecs"
-        }
-      }
-    }
-  ])
-}
-
-resource "aws_ecs_service" "detection" {
-  name            = "detection-service"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.detection_engine.arn
-  launch_type     = "FARGATE"
-  desired_count   = 1
-
-  network_configuration {
-    subnets          = [aws_subnet.private_a.id]
-    security_groups  = [aws_security_group.ecs_tasks.id]
-    assign_public_ip = false
+  tags = {
+    App = "iam-anomaly-engine"
   }
-
-  depends_on = [aws_iam_role_policy_attachment.ecs_execution_role_policy]
 }
 
+resource "aws_cloudwatch_log_group" "detection" {
+  name              = "/ecs/detection"
+  retention_in_days = 30
+
+  tags = {
+    App = "iam-anomaly-engine"
+  }
+}
+
+# -----------------------------------
+# Baseline Engine Task Definition
+# -----------------------------------
 resource "aws_ecs_task_definition" "baseline_engine" {
+  count                    = var.deploy_baseline ? 1 : 0
   family                   = "baseline-engine"
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
@@ -61,30 +39,33 @@ resource "aws_ecs_task_definition" "baseline_engine" {
   container_definitions = jsonencode([
     {
       name      = "baseline"
-      image = "732406385148.dkr.ecr.us-east-2.amazonaws.com/baseline-engine:latest"
+      image     = "732406385148.dkr.ecr.${var.aws_region}.amazonaws.com/baseline-engine:latest"
       essential = true
       environment = [
         { name = "QUEUE_URL", value = aws_sqs_queue.baseline.id },
-        { name = "BASELINE_TABLE", value = "BaselineData" }
+        { name = "BASELINE_TABLE", value = aws_dynamodb_table.baseline_table.name }
       ]
       logConfiguration = {
         logDriver = "awslogs",
-        options   = {
-          awslogs-group         = "/ecs/baseline"
-          awslogs-region        = var.region
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.baseline.name
+          awslogs-region        = var.aws_region
           awslogs-stream-prefix = "ecs"
         }
       }
     }
   ])
+
+  depends_on = [aws_cloudwatch_log_group.baseline]
 }
 
 resource "aws_ecs_service" "baseline" {
-  name            = "baseline-service"
+  count           = var.deploy_baseline ? 1 : 0
+  name            = var.baseline_service_name
   cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.baseline_engine.arn
-  launch_type     = "FARGATE"
+  task_definition = aws_ecs_task_definition.baseline_engine[0].arn
   desired_count   = 1
+  launch_type     = "FARGATE"
 
   network_configuration {
     subnets          = [aws_subnet.private_a.id]
@@ -92,16 +73,60 @@ resource "aws_ecs_service" "baseline" {
     assign_public_ip = false
   }
 
-  depends_on = [aws_iam_role_policy_attachment.ecs_execution_role_policy]
+  depends_on = [aws_iam_role_policy.baseline_task_policy]
 }
 
-resource "aws_cloudwatch_log_group" "detection" {
-  name              = "/ecs/detection"
-  retention_in_days = 14
+# -----------------------------------
+# Detection Engine Task Definition
+# -----------------------------------
+resource "aws_ecs_task_definition" "detection_engine" {
+  count                    = var.deploy_detection ? 1 : 0
+  family                   = "detection-engine"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = "256"
+  memory                   = "512"
+  execution_role_arn       = aws_iam_role.ecs_execution_role.arn
+  task_role_arn            = aws_iam_role.detection_task_role.arn
+
+  container_definitions = jsonencode([
+    {
+      name      = "detection"
+      image     = "732406385148.dkr.ecr.${var.aws_region}.amazonaws.com/detection-engine:latest"
+      essential = true
+      environment = [
+        { name = "QUEUE_URL", value = aws_sqs_queue.detection.id },
+        { name = "BASELINE_TABLE", value = aws_dynamodb_table.baseline_table.name },
+        { name = "ALERT_BUCKET", value = var.alert_bucket_name }
+      ]
+      logConfiguration = {
+        logDriver = "awslogs",
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.detection.name
+          awslogs-region        = var.aws_region
+          awslogs-stream-prefix = "ecs"
+        }
+      }
+    }
+  ])
+
+  depends_on = [aws_cloudwatch_log_group.detection]
 }
 
-resource "aws_cloudwatch_log_group" "baseline" {
-  name              = "/ecs/baseline"
-  retention_in_days = 14
+resource "aws_ecs_service" "detection" {
+  count           = var.deploy_detection ? 1 : 0
+  name            = var.detection_service_name
+  cluster         = aws_ecs_cluster.main.id
+  task_definition = aws_ecs_task_definition.detection_engine[0].arn
+  desired_count   = 1
+  launch_type     = "FARGATE"
+
+  network_configuration {
+    subnets          = [aws_subnet.private_a.id]
+    security_groups  = [aws_security_group.ecs_tasks.id]
+    assign_public_ip = false
+  }
+
+  depends_on = [aws_iam_role_policy.detection_task_policy]
 }
 

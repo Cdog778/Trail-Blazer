@@ -1,8 +1,6 @@
-# -----------------------------------
-# CloudTrail Logs Bucket
-# -----------------------------------
 resource "aws_s3_bucket" "cloudtrail_logs" {
-  bucket = "cloudtrail-logs-84917"
+  bucket = var.cloudtrail_bucket_name
+
   force_destroy = false
 
   lifecycle {
@@ -42,43 +40,6 @@ resource "aws_s3_bucket_lifecycle_configuration" "cloudtrail_logs" {
   }
 }
 
-# Bucket Policy Required for CloudTrail
-data "aws_caller_identity" "current" {}
-
-resource "aws_s3_bucket_policy" "cloudtrail_logs_policy" {
-  bucket = aws_s3_bucket.cloudtrail_logs.id
-
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Sid       = "AWSCloudTrailAclCheck",
-        Effect    = "Allow",
-        Principal = {
-          Service = "cloudtrail.amazonaws.com"
-        },
-        Action    = "s3:GetBucketAcl",
-        Resource  = aws_s3_bucket.cloudtrail_logs.arn
-      },
-      {
-        Sid       = "AWSCloudTrailWrite",
-        Effect    = "Allow",
-        Principal = {
-          Service = "cloudtrail.amazonaws.com"
-        },
-        Action    = "s3:PutObject",
-        Resource  = "${aws_s3_bucket.cloudtrail_logs.arn}/AWSLogs/${data.aws_caller_identity.current.account_id}/*",
-        Condition = {
-          StringEquals = {
-            "s3:x-amz-acl" = "bucket-owner-full-control"
-          }
-        }
-      }
-    ]
-  })
-}
-
-# S3 → SNS Notification for new CloudTrail logs
 resource "aws_s3_bucket_notification" "cloudtrail_logs_notify" {
   bucket = aws_s3_bucket.cloudtrail_logs.id
 
@@ -90,15 +51,13 @@ resource "aws_s3_bucket_notification" "cloudtrail_logs_notify" {
   depends_on = [
     aws_s3_bucket.cloudtrail_logs,
     aws_sns_topic.cloudtrail_events,
-    aws_s3_bucket_policy.cloudtrail_logs_policy
+    aws_sns_topic_policy.allow_s3_publish
   ]
 }
 
-# -----------------------------------
-# Alerts Bucket for Detection Engine
-# -----------------------------------
 resource "aws_s3_bucket" "alerts" {
-  bucket = "anomaly-alerts-84917"
+  bucket = var.alert_bucket_name
+
   force_destroy = false
 
   tags = {
@@ -125,12 +84,45 @@ resource "aws_s3_bucket_lifecycle_configuration" "alerts" {
     status = "Enabled"
 
     filter {
-      prefix = ""
+      prefix = "alerts/"
     }
 
     expiration {
-      days = 180
+      days = 90
     }
   }
+}
+
+resource "aws_s3_bucket_policy" "cloudtrail_logs_policy" {
+  bucket = aws_s3_bucket.cloudtrail_logs.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid    = "AWSCloudTrailAclCheck",
+        Effect = "Allow",
+        Principal = {
+          Service = "cloudtrail.amazonaws.com"
+        },
+        Action   = "s3:GetBucketAcl",
+        Resource = aws_s3_bucket.cloudtrail_logs.arn
+      },
+      {
+        Sid    = "AWSCloudTrailWrite",
+        Effect = "Allow",
+        Principal = {
+          Service = "cloudtrail.amazonaws.com"
+        },
+        Action   = "s3:PutObject",
+        Resource = "${aws_s3_bucket.cloudtrail_logs.arn}/AWSLogs/${var.account_id}/*",
+        Condition = {
+          StringEquals = {
+            "s3:x-amz-acl" = "bucket-owner-full-control"
+          }
+        }
+      }
+    ]
+  })
 }
 
