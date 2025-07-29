@@ -26,3 +26,14 @@ cleanup:
 sqs:
   baseline_queue_url: https://sqs.us-east-2.amazonaws.com/732406385148/baseline-queue
 
+defaults:
+  allowed_hours_by_region:
+    us-east-1: ["08", "09", "10", "11", "12", "13", "14", "15", "16", "17"]
+    us-west-1: ["10", "11", "12", "13", "14", "15", "16", "17", "18"]
+    us-west-2: ["10", "11", "12", "13", "14", "15", "16", "17", "18"]
+    us-gov-west-1: ["13", "14", "15", "16", "17", "18", "19"]
+    us-gov-east-1: ["08", "09", "10", "11", "12", "13", "14", "15", "16"]
+
+users:
+  jim:
+    allowed_hours_utc: ["06", "07", "08", "09", "10", "11"]

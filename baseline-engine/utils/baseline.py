@@ -3,7 +3,23 @@ import time
 from datetime import datetime
 
 def normalize_user(identity):
-    return identity.get("userName") or identity.get("principalId") or "unknown"
+    if not identity:
+        return "unknown"
+
+    # Prefer IAM user
+    if identity.get("userName"):
+        return identity["userName"]
+
+    # For AssumedRole, extract issuer if clean
+    if identity.get("type") == "AssumedRole":
+        session_issuer = identity.get("sessionContext", {}).get("sessionIssuer", {})
+        name = session_issuer.get("userName") or session_issuer.get("arn")
+        if name and ":" not in name:
+            return name
+
+    # Fallback: extract simple token from arn or principalId
+    arn = identity.get("arn") or identity.get("principalId", "unknown")
+    return re.split(r"[:/]+", arn)[-1] if arn else "unknown"
 
 def _now_ts():
     return int(time.time())
@@ -16,6 +32,11 @@ def record_candidate(username, field_key, value, table, thresholds):
     now_hr = datetime.utcfromtimestamp(now_ts).isoformat() + "Z"
     ttl    = now_ts + _days_to_seconds(thresholds["max_age_days"] * 2)
 
+    # Skip if already trusted
+    item = table.get_item(Key={"username": username}).get("Item", {})
+    if value in item.get(field_key, []):
+        return
+
     try:
         # Step 1: Ensure `candidates` exists
         table.update_item(
@@ -24,37 +45,23 @@ def record_candidate(username, field_key, value, table, thresholds):
             ExpressionAttributeValues={":empty_map": {}}
         )
 
-        # Step 2: Ensure `candidates.#f` (e.g. "sourceIPAddress") exists
+        # Step 2: Ensure `candidates.#f` exists
         table.update_item(
             Key={"username": username},
             UpdateExpression="SET candidates.#f = if_not_exists(candidates.#f, :empty_map)",
-            ExpressionAttributeNames={
-                "#f": field_key
-            },
-            ExpressionAttributeValues={
-                ":empty_map": {}
-            }
+            ExpressionAttributeNames={"#f": field_key},
+            ExpressionAttributeValues={":empty_map": {}}
         )
 
-        # Step 3: Ensure `candidates.#f.#v` (e.g. "sourceIPAddress.192.168.1.1") exists
+        # Step 3: Ensure `candidates.#f.#v` exists
         table.update_item(
             Key={"username": username},
             UpdateExpression="SET candidates.#f.#v = if_not_exists(candidates.#f.#v, :empty_map)",
-            ExpressionAttributeNames={
-                "#f": field_key,
-                "#v": value
-            },
-            ExpressionAttributeValues={
-                ":empty_map": {}
-            }
+            ExpressionAttributeNames={"#f": field_key, "#v": value},
+            ExpressionAttributeValues={":empty_map": {}}
         )
 
-    except Exception as e:
-        print(f"[ERROR] Failed to initialize candidate path: {e}", flush=True)
-        return
-
-    try:
-        # Step 4: Update all attributes inside the map
+        # Step 4: Update candidate tracking values
         update_expr = (
             "SET candidates.#f.#v.#last_seen = :now_ts, "
             "candidates.#f.#v.#ttl = :ttl, "
@@ -82,11 +89,11 @@ def record_candidate(username, field_key, value, table, thresholds):
                 ":inc": 1
             }
         )
+
     except Exception as e:
-        print(f"[ERROR] Failed to update candidate metrics: {e}", flush=True)
+        print(f"[ERROR] Failed to record candidate {field_key}={value} for {username}: {e}", flush=True)
 
 def should_promote_candidate(item, field_key, value, thresholds):
-    # Don't promote if value is already in the trusted set
     if value in item.get(field_key, []):
         return False
 
@@ -112,7 +119,7 @@ def promote_candidate(username, field_key, value, table):
             ExpressionAttributeValues={":new_ss": new_ss}
         )
 
-    # Remove the candidate entry
+    # Remove candidate tracking after promotion
     table.update_item(
         Key={"username": username},
         UpdateExpression="REMOVE candidates.#f.#v",

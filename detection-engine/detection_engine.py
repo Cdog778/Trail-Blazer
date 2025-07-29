@@ -11,6 +11,7 @@ from detection_rules.assume_role import detect_assume_role
 from detection_rules.privilege_escalation import detect_privilege_escalation
 from detection_rules.s3_exposure import detect_s3_exposure
 from detection_rules.blocked_actions import detect_blocked_action
+from detection_rules.user_behavior import detect_user_behavior_anomaly
 
 config = load_config()
 REGION = config["aws"]["region"]
@@ -24,7 +25,10 @@ sqs = boto3.client("sqs", region_name=REGION)
 table = dynamodb.Table(TABLE_NAME)
 
 def normalize_user(identity):
-    return identity.get("userName") or identity.get("principalId") or "unknown"
+    if identity.get("type") == "AssumedRole":
+        return identity.get("sessionContext", {}).get("sessionIssuer", {}).get("userName") \
+            or identity.get("arn") or identity.get("principalId") or "unknown"
+    return identity.get("userName") or identity.get("arn") or identity.get("principalId") or "unknown"
 
 def process_log_file(bucket, key):
     try:
@@ -39,9 +43,11 @@ def process_log_file(bucket, key):
 
         for i, record in enumerate(log_data.get("Records", [])):
             print(f"[DEBUG] Processing record {i+1}", flush=True)
+
             identity = record.get("userIdentity", {})
             username = normalize_user(identity)
             user_agent = record.get("userAgent", "unknown")
+            source_ip = record.get("sourceIPAddress", "unknown")
 
             print(f"[DEBUG] User: {username}, Agent: {user_agent}", flush=True)
 
@@ -49,13 +55,33 @@ def process_log_file(bucket, key):
                 print(f"[SKIP] Suppressed {username}/{user_agent}", flush=True)
                 continue
 
-            baseline = table.get_item(Key={"username": username}).get("Item", {})
-            print(f"[DEBUG] Loaded baseline for {username}: {bool(baseline)}", flush=True)
+            baseline_resp = table.get_item(Key={"username": username})
+            baseline = baseline_resp.get("Item", {})
+
+            # First-time user detection
+            if not baseline:
+                print(f"[INFO] New user detected: {username}", flush=True)
+                write_alert(
+                    alert_type="New User Activity",
+                    metadata={
+                        "severity": "info",
+                        "category": "iam",
+                        "actor_type": "unknown",
+                        "timestamp": record.get("eventTime")
+                    },
+                    details={
+                        "user": username,
+                        "event": record.get("eventName"),
+                        "source_ip": source_ip,
+                        "user_agent": user_agent
+                    }
+                )
 
             detect_assume_role(record, baseline, write_alert)
             detect_privilege_escalation(record, baseline, write_alert)
             detect_s3_exposure(record, baseline, write_alert)
             detect_blocked_action(record, baseline, write_alert)
+            detect_user_behavior_anomaly(record, baseline, write_alert)
 
     except Exception as e:
         print(f"[ERROR] Failed to process log file {key}: {e}", flush=True)

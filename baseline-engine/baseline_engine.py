@@ -15,7 +15,6 @@ from utils.baseline import (
 )
 from utils.alert_writer import write_alert
 
-# --- Load config ---
 cfg = load_config()
 REGION      = cfg["aws"]["region"]
 BUCKET      = cfg["s3"]["log_bucket"]
@@ -23,13 +22,11 @@ QUEUE_URL   = cfg["sqs"]["baseline_queue_url"]
 TABLE_NAME  = cfg["dynamodb"]["baseline_table"]
 PROM_THRESH = cfg["dynamodb"]["promotion"]
 
-# --- AWS clients ---
 s3    = boto3.client("s3", region_name=REGION)
 sqs   = boto3.client("sqs", region_name=REGION)
 ddb   = boto3.resource("dynamodb", region_name=REGION)
 table = ddb.Table(TABLE_NAME)
 
-# --- Fields to baseline ---
 FIELD_MAP = {
     "sourceIPAddress": "known_ips",
     "awsRegion":       "regions",
@@ -59,14 +56,27 @@ def process_log_file(bucket, key):
                 if not val or is_suppressed(username, val):
                     continue
 
-                # Record as candidate
                 record_candidate(username, base_key, val, table, PROM_THRESH)
 
-                # Check if candidate should be promoted
                 item = table.get_item(Key={"username": username}).get("Item", {})
                 if should_promote_candidate(item, base_key, val, PROM_THRESH):
                     promote_candidate(username, base_key, val, table)
                     alert_promotion(username, base_key, val, write_alert)
+
+            timestamp = record.get("eventTime")
+            if timestamp:
+                try:
+                    event_hour = datetime.fromisoformat(timestamp.replace("Z", "+00:00")).hour
+                    hour_str = str(event_hour).zfill(2)
+                    record_candidate(username, "work_hours_utc", hour_str, table, PROM_THRESH)
+
+                    # Promote if needed
+                    item = table.get_item(Key={"username": username}).get("Item", {})
+                    if should_promote_candidate(item, "work_hours_utc", hour_str, PROM_THRESH):
+                        promote_candidate(username, "work_hours_utc", hour_str, table)
+                        alert_promotion(username, "work_hours_utc", hour_str, write_alert)
+                except Exception as e:
+                    print(f"[WARN] Could not parse eventTime for work-hours: {e}", flush=True)
 
         except Exception as e:
             print(f"[ERROR] Failed to process record {i + 1}: {e}", flush=True)
