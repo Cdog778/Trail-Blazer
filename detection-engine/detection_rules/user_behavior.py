@@ -22,14 +22,11 @@ def detect_user_behavior_anomaly(record, baseline, write_alert):
     except Exception as e:
         print(f"[WARN] Failed to parse hour from timestamp: {e}", flush=True)
 
-    # Step 1: Check config-based hour override
     allowed_hours = config.get("users", {}).get(username, {}).get("allowed_hours_utc")
 
-    # Step 2: If no per-user config, try region default
     if not allowed_hours:
         allowed_hours = config.get("defaults", {}).get("allowed_hours_by_region", {}).get(region)
 
-    # Step 3: If any config found, validate event hour
     if allowed_hours and event_hour:
         if event_hour not in allowed_hours:
             print(f"[ALERT] Off-hours activity for {username}: {event_hour} not in {allowed_hours}", flush=True)
@@ -52,9 +49,8 @@ def detect_user_behavior_anomaly(record, baseline, write_alert):
                     "service": service
                 }
             )
-            return  # Skip baseline-based check if policy override triggered
+            return  
 
-    # === Baseline-based anomaly detection ===
 
     if source_ip and source_ip not in baseline.get("known_ips", []):
         anomalies.append(("sourceIPAddress", source_ip))
@@ -68,7 +64,6 @@ def detect_user_behavior_anomaly(record, baseline, write_alert):
     if service and service not in baseline.get("services", []):
         anomalies.append(("eventSource", service))
 
-    # Optional: baseline-based hour anomaly (fallback)
     if event_hour and not allowed_hours:
         trusted_hours = baseline.get("work_hours_utc", [])
         if trusted_hours and event_hour not in trusted_hours:
