@@ -51,6 +51,7 @@ def process_log_file(bucket, key):
             if username == "unknown":
                 continue
 
+            #Baseline fields
             for raw_key, base_key in FIELD_MAP.items():
                 val = record.get(raw_key)
                 if not val or is_suppressed(username, val):
@@ -63,6 +64,7 @@ def process_log_file(bucket, key):
                     promote_candidate(username, base_key, val, table)
                     alert_promotion(username, base_key, val, write_alert)
 
+            #Baseline work-hours
             timestamp = record.get("eventTime")
             if timestamp:
                 try:
@@ -70,13 +72,23 @@ def process_log_file(bucket, key):
                     hour_str = str(event_hour).zfill(2)
                     record_candidate(username, "work_hours_utc", hour_str, table, PROM_THRESH)
 
-                    # Promote if needed
                     item = table.get_item(Key={"username": username}).get("Item", {})
                     if should_promote_candidate(item, "work_hours_utc", hour_str, PROM_THRESH):
                         promote_candidate(username, "work_hours_utc", hour_str, table)
                         alert_promotion(username, "work_hours_utc", hour_str, write_alert)
                 except Exception as e:
                     print(f"[WARN] Could not parse eventTime for work-hours: {e}", flush=True)
+
+            #Baseline assumed role ARNs
+            if record.get("eventName") == "AssumeRole":
+                role_arn = record.get("requestParameters", {}).get("roleArn")
+                if role_arn:
+                    record_candidate(username, "assumed_roles", role_arn, table, PROM_THRESH)
+
+                    item = table.get_item(Key={"username": username}).get("Item", {})
+                    if should_promote_candidate(item, "assumed_roles", role_arn, PROM_THRESH):
+                        promote_candidate(username, "assumed_roles", role_arn, table)
+                        alert_promotion(username, "assumed_roles", role_arn, write_alert)
 
         except Exception as e:
             print(f"[ERROR] Failed to process record {i + 1}: {e}", flush=True)
