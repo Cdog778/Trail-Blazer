@@ -12,6 +12,7 @@ from detection_rules.privilege_escalation import detect_privilege_escalation
 from detection_rules.s3_exposure import detect_s3_exposure
 from detection_rules.blocked_actions import detect_blocked_action
 from detection_rules.user_behavior import detect_user_behavior_anomaly
+from detection_rules.unseen_action import detect_unseen_action
 
 config = load_config()
 REGION = config["aws"]["region"]
@@ -82,6 +83,7 @@ def process_log_file(bucket, key):
             detect_s3_exposure(record, baseline, write_alert)
             detect_blocked_action(record, baseline, write_alert)
             detect_user_behavior_anomaly(record, baseline, write_alert)
+            detect_unseen_action(record, baseline, write_alert)
 
     except Exception as e:
         print(f"[ERROR] Failed to process log file {key}: {e}", flush=True)

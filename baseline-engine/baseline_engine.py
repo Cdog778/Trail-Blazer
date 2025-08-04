@@ -51,7 +51,7 @@ def process_log_file(bucket, key):
             if username == "unknown":
                 continue
 
-            #Baseline fields
+            # Baseline fields
             for raw_key, base_key in FIELD_MAP.items():
                 val = record.get(raw_key)
                 if not val or is_suppressed(username, val):
@@ -64,7 +64,7 @@ def process_log_file(bucket, key):
                     promote_candidate(username, base_key, val, table)
                     alert_promotion(username, base_key, val, write_alert)
 
-            #Baseline work-hours
+            # Baseline work-hours
             timestamp = record.get("eventTime")
             if timestamp:
                 try:
@@ -79,7 +79,7 @@ def process_log_file(bucket, key):
                 except Exception as e:
                     print(f"[WARN] Could not parse eventTime for work-hours: {e}", flush=True)
 
-            #Baseline assumed role ARNs
+            # Baseline assumed role ARNs
             if record.get("eventName") == "AssumeRole":
                 role_arn = record.get("requestParameters", {}).get("roleArn")
                 if role_arn:
@@ -89,6 +89,18 @@ def process_log_file(bucket, key):
                     if should_promote_candidate(item, "assumed_roles", role_arn, PROM_THRESH):
                         promote_candidate(username, "assumed_roles", role_arn, table)
                         alert_promotion(username, "assumed_roles", role_arn, write_alert)
+
+            # Baseline service actions
+            service = record.get("eventSource", "unknown").replace(".amazonaws.com", "")
+            action = record.get("eventName", "unknown")
+            service_action = f"{service}:{action}"
+
+            record_candidate(username, "actions", service_action, table, PROM_THRESH)
+
+            item = table.get_item(Key={"username": username}).get("Item", {})
+            if should_promote_candidate(item, "actions", service_action, PROM_THRESH):
+                promote_candidate(username, "actions", service_action, table)
+                alert_promotion(username, "actions", service_action, write_alert)
 
         except Exception as e:
             print(f"[ERROR] Failed to process record {i + 1}: {e}", flush=True)
