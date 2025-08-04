@@ -53,17 +53,14 @@ def detect_assume_role(record, baseline, write_alert):
         is_agent_untrusted = user_agent not in baseline.get("user_agents", []) and not is_candidate("user_agents", user_agent)
 
         if is_cross_account and (is_ip_untrusted or is_agent_untrusted):
-        alerts.append({
-            "alert_type": "Cross-Account AssumeRole",
-            "severity": "medium",
-            "reason": (
-                f"Principal {principal_arn} assumed cross-account role "
-                f"{role_arn} from unknown IP or agent"
-            )
-        })
-
-    except Exception as e:
-        print(f"[ERROR] Failed to parse account IDs for AssumeRole check: {e}", flush=True)
+            alerts.append({
+                "alert_type": "Cross-Account AssumeRole",
+                "severity": "medium",
+                "reason": (
+                    f"Principal {principal_arn} assumed cross-account role "
+                    f"{role_arn} from unknown IP or agent"
+                )
+            })
 
     except Exception as e:
         print(f"[ERROR] Failed to parse account IDs for AssumeRole check: {e}", flush=True)
