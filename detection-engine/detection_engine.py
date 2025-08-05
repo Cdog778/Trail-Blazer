@@ -83,7 +83,7 @@ def process_log_file(bucket, key):
                         "user_agent": user_agent
                     }
                 )
-                continue  # Skip detection for burn-in
+                continue
 
             if is_in_burn_in_period(baseline):
                 print(f"[SUPPRESS] User {username} is in burn-in period — skipping detection", flush=True)
