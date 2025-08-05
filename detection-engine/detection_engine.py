@@ -1,7 +1,11 @@
 import boto3
 import json
 import gzip
+import os
 from datetime import datetime
+
+print("CWD:", os.getcwd())
+print("Files in ./utils/:", os.listdir("./utils"))
 
 from utils.config_loader import load_config
 from utils.suppression import is_suppressed
