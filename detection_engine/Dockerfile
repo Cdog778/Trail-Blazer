@@ -1,5 +1,6 @@
 FROM python:3.11-slim
 
+# Set working directory
 WORKDIR /app
 
 # Copy core detection engine components
@@ -10,10 +11,14 @@ COPY requirements.txt .
 # Copy detection rules directory
 COPY detection_rules/ detection_rules/
 
-# Copy only necessary utility files
-COPY utils/config_loader.py utils/config_loader.py
-COPY utils/suppression.py utils/suppression.py
-COPY utils/alert_writer.py utils/alert_writer.py
+# Copy all utility files
+COPY utils/ utils/
+
+# Set PYTHONPATH so absolute imports like 'from utils.x import y' work
+ENV PYTHONPATH=/app
+
+# Debug visibility inside image (will show up in CloudWatch logs)
+RUN ls -R /app
 
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
@@ -21,4 +26,3 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Run the detection engine
 CMD ["python", "detection_engine.py"]
 
-# trigger deploy

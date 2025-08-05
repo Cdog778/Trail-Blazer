@@ -2,11 +2,16 @@ import boto3
 import json
 import gzip
 from datetime import datetime
+import sys, os
+print("[DEBUG] Current working directory:", os.getcwd())
+print("[DEBUG] sys.path:", sys.path)
+print("[DEBUG] Files in utils/:", os.listdir("utils"))
+
 
 from utils.config_loader import load_config
 from utils.suppression import is_suppressed
 from utils.alert_writer import write_alert
-from detection_engine.utils.burn_in import is_in_burn_in_period
+from utils.burn_in import is_in_burn_in_period
 
 from detection_rules.assume_role import detect_assume_role
 from detection_rules.privilege_escalation import detect_privilege_escalation
