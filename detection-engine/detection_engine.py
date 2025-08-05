@@ -6,6 +6,7 @@ from datetime import datetime
 from utils.config_loader import load_config
 from utils.suppression import is_suppressed
 from utils.alert_writer import write_alert
+from utils.burn_in_period import is_in_burn_in_period
 
 from detection_rules.assume_role import detect_assume_role
 from detection_rules.privilege_escalation import detect_privilege_escalation
@@ -59,9 +60,11 @@ def process_log_file(bucket, key):
             baseline_resp = table.get_item(Key={"username": username})
             baseline = baseline_resp.get("Item", {})
 
-            # First-time user detection
+            # First-time user setup
             if not baseline:
-                print(f"[INFO] New user detected: {username}", flush=True)
+                now = datetime.utcnow().isoformat() + "Z"
+                print(f"[INFO] New user detected: {username}, setting first_seen = {now}", flush=True)
+                table.put_item(Item={"username": username, "first_seen": now})
                 write_alert(
                     alert_type="New User Activity",
                     metadata={
@@ -77,6 +80,15 @@ def process_log_file(bucket, key):
                         "user_agent": user_agent
                     }
                 )
+                continue
+
+            # Refresh baseline in case it was just added
+            baseline_resp = table.get_item(Key={"username": username})
+            baseline = baseline_resp.get("Item", {})
+
+            if is_in_burn_in_period(baseline):
+                print(f"[SUPPRESS] User {username} is in burn-in period — skipping detection", flush=True)
+                continue
 
             detect_assume_role(record, baseline, write_alert)
             detect_privilege_escalation(record, baseline, write_alert)
@@ -127,4 +139,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
