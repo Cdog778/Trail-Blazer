@@ -60,11 +60,14 @@ def process_log_file(bucket, key):
             baseline_resp = table.get_item(Key={"username": username})
             baseline = baseline_resp.get("Item", {})
 
-            # First-time user setup
             if not baseline:
                 now = datetime.utcnow().isoformat() + "Z"
                 print(f"[INFO] New user detected: {username}, setting first_seen = {now}", flush=True)
-                table.put_item(Item={"username": username, "first_seen": now})
+                baseline = {
+                    "username": username,
+                    "first_seen": now
+                }
+                table.put_item(Item=baseline)
                 write_alert(
                     alert_type="New User Activity",
                     metadata={
@@ -80,11 +83,7 @@ def process_log_file(bucket, key):
                         "user_agent": user_agent
                     }
                 )
-                continue
-
-            # Refresh baseline in case it was just added
-            baseline_resp = table.get_item(Key={"username": username})
-            baseline = baseline_resp.get("Item", {})
+                continue  # Skip detection for burn-in
 
             if is_in_burn_in_period(baseline):
                 print(f"[SUPPRESS] User {username} is in burn-in period — skipping detection", flush=True)
