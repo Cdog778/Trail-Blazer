@@ -4,7 +4,6 @@ import json
 import time
 from datetime import datetime
 
-#test
 from utils.config_loader import load_config
 from utils.suppression import is_suppressed
 from utils.baseline import (
@@ -52,7 +51,7 @@ def process_log_file(bucket, key):
             if username == "unknown":
                 continue
 
-            item = table.get_item(Key={"username": username}).get("Item", {})
+        item = table.get_item(Key={"username": username}).get("Item", {})
         if not item:
             now = datetime.utcnow().isoformat() + "Z"
             print(f"[INFO] New user detected: {username}, setting first_seen = {now}", flush=True)
