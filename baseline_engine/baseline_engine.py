@@ -51,12 +51,12 @@ def process_log_file(bucket, key):
             if username == "unknown":
                 continue
 
-        item = table.get_item(Key={"username": username}).get("Item", {})
-        if not item:
-            now = datetime.utcnow().isoformat() + "Z"
-            print(f"[INFO] New user detected: {username}, setting first_seen = {now}", flush=True)
-            table.put_item(Item={"username": username, "first_seen": now})
-            item = {"username": username, "first_seen": now}
+            item = table.get_item(Key={"username": username}).get("Item", {})
+            if not item:
+                now = datetime.utcnow().isoformat() + "Z"
+                print(f"[INFO] New user detected: {username}, setting first_seen = {now}", flush=True)
+                table.put_item(Item={"username": username, "first_seen": now})
+                item = {"username": username, "first_seen": now}
 
             # Baseline fields
             for raw_key, base_key in FIELD_MAP.items():
