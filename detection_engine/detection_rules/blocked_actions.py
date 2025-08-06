@@ -1,9 +1,8 @@
-def detect_blocked_action(record, baseline, write_alert):
+def detect_blocked_action(record, baseline, write_alert, username):
     error_code = record.get("errorCode")
     if error_code != "AccessDenied":
         return
 
-    username = record.get("userIdentity", {}).get("userName", "unknown")
     source_ip = record.get("sourceIPAddress", "unknown")
     region = record.get("awsRegion", "unknown")
     event_time = record.get("eventTime")
@@ -11,7 +10,7 @@ def detect_blocked_action(record, baseline, write_alert):
     event_name = record.get("eventName", "unknown")
     action_key = f"{service}:{event_name}"
 
-    # Suppression list for noisy, low-risk AccessDenied events
+    # Suppression list for noisy AccessDenied events
     SUPPRESSED_BLOCKED_EVENTS = [
         "ec2:Describe*", "ec2:Get*", "ec2:List*",
         "s3:Get*", "s3:List*", "s3:Head*",

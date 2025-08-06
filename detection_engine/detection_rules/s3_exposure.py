@@ -1,6 +1,5 @@
-def detect_s3_exposure(record, baseline, write_alert):
+def detect_s3_exposure(record, baseline, write_alert, username):
     event_name = record.get("eventName")
-    username = record.get("userIdentity", {}).get("userName", "unknown")
     source_ip = record.get("sourceIPAddress", "unknown")
     user_agent = record.get("userAgent", "unknown")
     region = record.get("awsRegion", "unknown")

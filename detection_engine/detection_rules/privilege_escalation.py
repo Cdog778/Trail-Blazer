@@ -1,6 +1,5 @@
-def detect_privilege_escalation(record, baseline, write_alert):
+def detect_privilege_escalation(record, baseline, write_alert, username):
     event_name = record.get("eventName")
-    username = record.get("userIdentity", {}).get("userName", "unknown")
     event_time_str = record.get("eventTime")
     source_ip = record.get("sourceIPAddress", "unknown")
     user_agent = record.get("userAgent", "unknown")

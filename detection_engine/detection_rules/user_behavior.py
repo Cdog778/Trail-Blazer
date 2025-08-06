@@ -1,8 +1,7 @@
 from datetime import datetime
 from utils.config_loader import load_config
 
-def detect_user_behavior_anomaly(record, baseline, write_alert):
-    username    = record.get("userIdentity", {}).get("userName", "unknown")
+def detect_user_behavior_anomaly(record, baseline, write_alert, username):
     event_name  = record.get("eventName", "unknown")
     timestamp   = record.get("eventTime", "")
     source_ip   = record.get("sourceIPAddress", "unknown")

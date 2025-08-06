@@ -1,5 +1,4 @@
-def detect_unseen_action(record, baseline, write_alert):
-    username = record.get("userIdentity", {}).get("userName", "unknown")
+def detect_unseen_action(record, baseline, write_alert, username):
     event_name = record.get("eventName", "unknown")
     event_time = record.get("eventTime")
     service = record.get("eventSource", "unknown").replace(".amazonaws.com", "")

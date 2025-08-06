@@ -91,12 +91,12 @@ def process_log_file(bucket, key):
                 print(f"[SUPPRESS] User {username} is in burn-in period", flush=True)
                 continue
 
-            detect_assume_role(record, baseline, write_alert)
-            detect_privilege_escalation(record, baseline, write_alert)
-            detect_s3_exposure(record, baseline, write_alert)
-            detect_blocked_action(record, baseline, write_alert)
-            detect_user_behavior_anomaly(record, baseline, write_alert)
-            detect_unseen_action(record, baseline, write_alert)
+            detect_assume_role(record, baseline, write_alert, username)
+            detect_privilege_escalation(record, baseline, write_alert, username)
+            detect_s3_exposure(record, baseline, write_alert, username)
+            detect_blocked_action(record, baseline, write_alert, username)
+            detect_user_behavior_anomaly(record, baseline, write_alert, username)
+            detect_unseen_action(record, baseline, write_alert, username)
 
     except Exception as e:
         print(f"[ERROR] Failed to process log file {key}: {e}", flush=True)

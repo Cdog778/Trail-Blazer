@@ -1,10 +1,9 @@
-def detect_assume_role(record, baseline, write_alert):
+def detect_assume_role(record, baseline, write_alert, username):
     event_name = record.get("eventName")
     if event_name != "AssumeRole":
         return
 
     identity = record.get("userIdentity", {})
-    username = identity.get("userName", "unknown")
     source_ip = record.get("sourceIPAddress", "unknown")
     region = record.get("awsRegion", "unknown")
     user_agent = record.get("userAgent", "unknown")
