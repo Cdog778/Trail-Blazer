@@ -3,9 +3,6 @@ import json
 import gzip
 from datetime import datetime
 import sys, os
-print("[DEBUG] Current working directory:", os.getcwd())
-print("[DEBUG] sys.path:", sys.path)
-print("[DEBUG] Files in utils/:", os.listdir("utils"))
 
 
 from utils.config_loader import load_config
