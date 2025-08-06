@@ -49,12 +49,13 @@ def process_log_file(bucket, key):
             identity = record.get("userIdentity", {})
             username = normalize_user(identity)
             if username == "unknown":
+                print(f"[INFO] unknown user, skipping", flush=True)
                 continue
 
             item = table.get_item(Key={"username": username}).get("Item", {})
             if not item:
                 now = datetime.utcnow().isoformat() + "Z"
-                print(f"[INFO] New user detected: {username}, setting first_seen = {now}", flush=True)
+                print(f"[INFO] New user detected: {username}", flush=True)
                 table.put_item(Item={"username": username, "first_seen": now})
                 item = {"username": username, "first_seen": now}
 
