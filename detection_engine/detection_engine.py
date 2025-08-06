@@ -66,13 +66,7 @@ def process_log_file(bucket, key):
             baseline = baseline_resp.get("Item", {})
 
             if not baseline:
-                now = datetime.utcnow().isoformat() + "Z"
-                print(f"[INFO] New user detected: {username}, setting first_seen = {now}", flush=True)
-                baseline = {
-                    "username": username,
-                    "first_seen": now
-                }
-                table.put_item(Item=baseline)
+                print(f"[INFO] New user detected: {username} (no baseline)", flush=True)
                 write_alert(
                     alert_type="New User Activity",
                     metadata={
@@ -91,7 +85,7 @@ def process_log_file(bucket, key):
                 continue
 
             if is_in_burn_in_period(baseline):
-                print(f"[SUPPRESS] User {username} is in burn-in period — skipping detection", flush=True)
+                print(f"[SUPPRESS] User {username} is in burn-in period", flush=True)
                 continue
 
             detect_assume_role(record, baseline, write_alert)
