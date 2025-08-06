@@ -48,6 +48,7 @@ def process_log_file(bucket, key):
         try:
             identity = record.get("userIdentity", {})
             username = normalize_user(identity)
+            print(f"[INFO] username: {username}", flush=True) 
             if username == "unknown":
                 print(f"[INFO] unknown user, skipping", flush=True)
                 continue

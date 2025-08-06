@@ -6,18 +6,15 @@ def normalize_user(identity):
     if not identity:
         return "unknown"
 
-    # Prefer IAM user
     if identity.get("userName"):
         return identity["userName"]
 
-    # For AssumedRole, extract issuer if clean
     if identity.get("type") == "AssumedRole":
         session_issuer = identity.get("sessionContext", {}).get("sessionIssuer", {})
         name = session_issuer.get("userName") or session_issuer.get("arn")
         if name and ":" not in name:
             return name
 
-    # Fallback: extract simple token from arn or principalId
     arn = identity.get("arn") or identity.get("principalId", "unknown")
     return re.split(r"[:/]+", arn)[-1] if arn else "unknown"
 
@@ -32,20 +29,17 @@ def record_candidate(username, field_key, value, table, thresholds):
     now_hr = datetime.utcfromtimestamp(now_ts).isoformat() + "Z"
     ttl    = now_ts + _days_to_seconds(thresholds["max_age_days"] * 2)
 
-    # Skip if already trusted
     item = table.get_item(Key={"username": username}).get("Item", {})
     if value in item.get(field_key, []):
         return
 
     try:
-        # Step 1: Ensure `candidates` exists
         table.update_item(
             Key={"username": username},
             UpdateExpression="SET candidates = if_not_exists(candidates, :empty_map)",
             ExpressionAttributeValues={":empty_map": {}}
         )
 
-        # Step 2: Ensure `candidates.#f` exists
         table.update_item(
             Key={"username": username},
             UpdateExpression="SET candidates.#f = if_not_exists(candidates.#f, :empty_map)",
@@ -53,7 +47,6 @@ def record_candidate(username, field_key, value, table, thresholds):
             ExpressionAttributeValues={":empty_map": {}}
         )
 
-        # Step 3: Ensure `candidates.#f.#v` exists
         table.update_item(
             Key={"username": username},
             UpdateExpression="SET candidates.#f.#v = if_not_exists(candidates.#f.#v, :empty_map)",
@@ -61,7 +54,6 @@ def record_candidate(username, field_key, value, table, thresholds):
             ExpressionAttributeValues={":empty_map": {}}
         )
 
-        # Step 4: Update candidate tracking values
         update_expr = (
             "SET candidates.#f.#v.#last_seen = :now_ts, "
             "candidates.#f.#v.#ttl = :ttl, "
@@ -119,7 +111,6 @@ def promote_candidate(username, field_key, value, table):
             ExpressionAttributeValues={":new_ss": new_ss}
         )
 
-    # Remove candidate tracking after promotion
     table.update_item(
         Key={"username": username},
         UpdateExpression="REMOVE candidates.#f.#v",
