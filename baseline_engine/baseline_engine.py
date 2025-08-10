@@ -57,7 +57,18 @@ def process_log_file(bucket, key):
             if not item:
                 now = datetime.utcnow().isoformat() + "Z"
                 print(f"[INFO] New user detected: {username}", flush=True)
-                table.put_item(Item={"username": username, "first_seen": now})
+                table.put_item(Item={
+        "username": username,
+        "first_seen": now,
+        "known_ips": [],
+        "user_agents": [],
+        "regions": [],
+        "services": [],
+        "actions": [],
+        "work_hours_utc": [],
+        "assumed_roles": [],
+        "candidates": {}
+    })
                 item = {"username": username, "first_seen": now}
 
             # Baseline fields
@@ -148,4 +159,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
