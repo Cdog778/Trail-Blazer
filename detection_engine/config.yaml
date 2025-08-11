@@ -1,11 +1,12 @@
 aws:
   region: us-east-2
 
+# check AWS logs /
 s3:
   log_bucket: cloudtrail-logs-company123
-  log_prefix: AWSLogs/
+  log_prefix: AWSLogs/   
   alert_bucket: anomaly-alerts-company123
-  alert_prefix: alerts/
+  alert_prefix: alerts
 
 dynamodb:
   baseline_table: BaselineData
