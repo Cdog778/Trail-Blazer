@@ -83,7 +83,7 @@ def process_log_file(bucket, key):
                     }
                 )
                 continue
-
+            print(f"[DEBUG] Calling is_in_burn_in_period() for {username} with baseline: {json.dumps(baseline, indent=2)}", flush=True)
             if is_in_burn_in_period(baseline):
                 print(f"[SUPPRESS] User {username} is in burn-in period", flush=True)
                 continue
