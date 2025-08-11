@@ -11,7 +11,7 @@ def is_in_burn_in_period(baseline_item):
     try:
         first_dt = datetime.fromisoformat(first_seen.replace("Z", "+00:00"))
         print(f"[DEBUG] Burn-in check: first_seen={first_seen}, first_dt={first_dt}, burn_in_days={burn_in_days}, now={datetime.utcnow().isoformat()}Z", flush=True)
-    return datetime.utcnow() < first_dt + timedelta(days=burn_in_days)
+        return datetime.utcnow() < first_dt + timedelta(days=burn_in_days)
     except Exception:
         return False
 
