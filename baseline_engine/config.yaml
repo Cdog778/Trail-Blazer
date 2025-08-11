@@ -27,7 +27,7 @@ sqs:
   baseline_queue_url: https://sqs.us-east-2.amazonaws.com/732406385148/baseline-queue
 
 detetion:
-  burn_in_days: 3
+  burn_in_days: 0
 
 defaults:
   allowed_hours_by_region:
