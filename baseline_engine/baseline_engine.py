@@ -3,17 +3,19 @@ import gzip
 import json
 import time
 from datetime import datetime
+import ipaddress  # NEW
 
 from utils.config_loader import load_config
 from utils.suppression import is_suppressed
 from utils.baseline import (
-    normalize_user,
+    normalize_user,          
     record_candidate,
     should_promote_candidate,
     promote_candidate,
     alert_promotion
 )
 from utils.alert_writer import write_alert
+from utils.identity import classify_identity, should_suppress_actor  
 
 cfg = load_config()
 REGION      = cfg["aws"]["region"]
@@ -21,6 +23,10 @@ BUCKET      = cfg["s3"]["log_bucket"]
 QUEUE_URL   = cfg["sqs"]["baseline_queue_url"]
 TABLE_NAME  = cfg["dynamodb"]["baseline_table"]
 PROM_THRESH = cfg["dynamodb"]["promotion"]
+
+SUPPRESSED_ACTOR_TYPES = set(
+    cfg.get("baseline", {}).get("suppressed_actor_types", ["service", "anonymous"])
+)
 
 s3    = boto3.client("s3", region_name=REGION)
 sqs   = boto3.client("sqs", region_name=REGION)
@@ -33,6 +39,13 @@ FIELD_MAP = {
     "userAgent":       "user_agents",
     "eventSource":     "services"
 }
+
+def _is_valid_ip(value: str) -> bool:
+    try:
+        ipaddress.ip_address(value)
+        return True
+    except Exception:
+        return False
 
 def process_log_file(bucket, key):
     print(f"[INFO] Processing: {bucket}/{key}", flush=True)
@@ -47,34 +60,41 @@ def process_log_file(bucket, key):
     for i, record in enumerate(log_data.get("Records", [])):
         try:
             identity = record.get("userIdentity", {})
-            username = normalize_user(identity)
-            print(f"[INFO] username: {username}", flush=True) 
-            if username == "unknown":
-                print(f"[INFO] unknown user, skipping", flush=True)
+            username, actor_type = classify_identity(identity)  # NEW
+            print(f"[INFO] baseline actor: id={username}, type={actor_type}", flush=True)
+
+            if should_suppress_actor(actor_type, SUPPRESSED_ACTOR_TYPES):
+                print(f"[SKIP] Suppressed actor at baseline: {actor_type} ({username})", flush=True)
+                continue
+            if actor_type == "unknown" or not username or username == "unknown":
+                print(f"[INFO] Unknown actor, skipping baseline", flush=True)
                 continue
 
             item = table.get_item(Key={"username": username}).get("Item", {})
             if not item:
                 now = datetime.utcnow().isoformat() + "Z"
-                print(f"[INFO] New user detected: {username}", flush=True)
+                print(f"[INFO] New actor detected: {username}", flush=True)
                 table.put_item(Item={
-        "username": username,
-        "first_seen": now,
-        "known_ips": [],
-        "user_agents": [],
-        "regions": [],
-        "services": [],
-        "actions": [],
-        "work_hours_utc": [],
-        "assumed_roles": [],
-        "candidates": {}
-    })
+                    "username": username,
+                    "first_seen": now,
+                    "known_ips": [],
+                    "user_agents": [],
+                    "regions": [],
+                    "services": [],
+                    "actions": [],
+                    "work_hours_utc": [],
+                    "assumed_roles": [],
+                    "candidates": {}
+                })
                 item = {"username": username, "first_seen": now}
 
-            # Baseline fields
             for raw_key, base_key in FIELD_MAP.items():
                 val = record.get(raw_key)
-                if not val or is_suppressed(username, val):
+                if not val:
+                    continue
+                if base_key == "known_ips" and not _is_valid_ip(val):
+                    continue
+                if is_suppressed(username, val):
                     continue
 
                 record_candidate(username, base_key, val, table, PROM_THRESH)
@@ -84,7 +104,6 @@ def process_log_file(bucket, key):
                     promote_candidate(username, base_key, val, table)
                     alert_promotion(username, base_key, val, write_alert)
 
-            # Baseline work-hours
             timestamp = record.get("eventTime")
             if timestamp:
                 try:
@@ -99,7 +118,6 @@ def process_log_file(bucket, key):
                 except Exception as e:
                     print(f"[WARN] Could not parse eventTime for work-hours: {e}", flush=True)
 
-            # Baseline assumed role ARNs
             if record.get("eventName") == "AssumeRole":
                 role_arn = record.get("requestParameters", {}).get("roleArn")
                 if role_arn:
@@ -110,7 +128,6 @@ def process_log_file(bucket, key):
                         promote_candidate(username, "assumed_roles", role_arn, table)
                         alert_promotion(username, "assumed_roles", role_arn, write_alert)
 
-            # Baseline service actions
             service = record.get("eventSource", "unknown").replace(".amazonaws.com", "")
             action = record.get("eventName", "unknown")
             service_action = f"{service}:{action}"
@@ -159,5 +176,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
