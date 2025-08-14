@@ -60,20 +60,25 @@ def process_log_file(bucket, key):
     for i, record in enumerate(log_data.get("Records", [])):
         try:
             identity = record.get("userIdentity", {})
-            username, actor_type = classify_identity(identity)  # NEW
-            print(f"[INFO] baseline actor: id={username}, type={actor_type}", flush=True)
+            username, actor_type = classify_identity(identity)
+            print(f"[DEBUG] Baseline actor resolved: id={username}, type={actor_type}", flush=True)
 
             if should_suppress_actor(actor_type, SUPPRESSED_ACTOR_TYPES):
                 print(f"[SKIP] Suppressed actor at baseline: {actor_type} ({username})", flush=True)
                 continue
+
             if actor_type == "unknown" or not username or username == "unknown":
-                print(f"[INFO] Unknown actor, skipping baseline", flush=True)
+                try:
+                    print(f"[DEBUG] Raw userIdentity for unknown (baseline): {json.dumps(identity)}", flush=True)
+                except Exception:
+                    print("[DEBUG] Raw userIdentity for unknown (baseline): <unserializable>", flush=True)
+                print("[INFO] Unknown actor, skipping baseline", flush=True)
                 continue
 
             item = table.get_item(Key={"username": username}).get("Item", {})
             if not item:
                 now = datetime.utcnow().isoformat() + "Z"
-                print(f"[INFO] New actor detected: {username}", flush=True)
+                print(f"[INFO] New actor detected for baseline: {username}", flush=True)
                 table.put_item(Item={
                     "username": username,
                     "first_seen": now,
@@ -90,11 +95,7 @@ def process_log_file(bucket, key):
 
             for raw_key, base_key in FIELD_MAP.items():
                 val = record.get(raw_key)
-                if not val:
-                    continue
-                if base_key == "known_ips" and not _is_valid_ip(val):
-                    continue
-                if is_suppressed(username, val):
+                if not val or is_suppressed(username, val):
                     continue
 
                 record_candidate(username, base_key, val, table, PROM_THRESH)

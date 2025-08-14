@@ -46,13 +46,18 @@ def process_log_file(bucket, key):
             print(f"[DEBUG] Processing record {i+1}", flush=True)
 
             identity = record.get("userIdentity", {})
-            username, actor_type = classify_identity(identity)  # NEW
+            username, actor_type = classify_identity(identity)
             print(f"[DEBUG] Actor resolved: id={username}, type={actor_type}", flush=True)
 
             if should_suppress_actor(actor_type, SUPPRESSED_ACTOR_TYPES):
                 print(f"[SKIP] Suppressed actor type: {actor_type} ({username})", flush=True)
                 continue
+
             if actor_type == "unknown" or not username or username == "unknown":
+                try:
+                    print(f"[DEBUG] Raw userIdentity for unknown: {json.dumps(identity)}", flush=True)
+                except Exception:
+                    print("[DEBUG] Raw userIdentity for unknown: <unserializable>", flush=True)
                 print(f"[SKIP] Unknown actor identity — skipping detection", flush=True)
                 continue
 
@@ -75,14 +80,14 @@ def process_log_file(bucket, key):
                         "severity": "info",
                         "category": "iam",
                         "actor_type": actor_type,
-                        "timestamp": record.get("eventTime")
+                        "timestamp": record.get("eventTime"),
                     },
                     details={
                         "user": username,
                         "event": record.get("eventName"),
                         "source_ip": source_ip,
-                        "user_agent": user_agent
-                    }
+                        "user_agent": user_agent,
+                    },
                 )
                 continue
 

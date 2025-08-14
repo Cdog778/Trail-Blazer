@@ -26,8 +26,13 @@ cleanup:
 sqs:
   baseline_queue_url: https://sqs.us-east-2.amazonaws.com/732406385148/baseline-queue
 
-detetion:
+detection:
   burn_in_days: 0
+  
+baseline:
+  suppressed_actor_types:
+    - service
+    - anonymous
 
 defaults:
   allowed_hours_by_region:

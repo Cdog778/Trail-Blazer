@@ -1,7 +1,6 @@
 aws:
   region: us-east-2
 
-# check AWS logs /
 s3:
   log_bucket: cloudtrail-logs-company123
   log_prefix: AWSLogs/   
@@ -30,6 +29,10 @@ sqs:
 
 detection:
   burn_in_days: 0
+
+  suppressed_actor_types:
+    - service
+    - anonymous
 
 defaults:
   allowed_hours_by_region:
