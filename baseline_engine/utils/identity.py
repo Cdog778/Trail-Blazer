@@ -1,4 +1,3 @@
-# utils/identity.py
 import re
 from typing import Tuple, Optional
 
@@ -50,3 +49,5 @@ def classify_identity(identity: Optional[dict]) -> Tuple[str, str]:
     arn = identity.get("arn") or identity.get("principalId", "") or "unknown"
     return (_final_token(arn) or "unknown", "unknown")
 
+def should_suppress_actor(actor_type: str, suppressed_types: set) -> bool:
+    return actor_type in suppressed_types
