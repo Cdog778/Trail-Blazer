@@ -30,21 +30,22 @@ def _trusted_hours_set(item: dict) -> set[int]:
     ns = item.get("work_hours_utc_ns")
     if not ns:
         return out
-    if isinstance(ns, set):
+
+    if isinstance(ns, dict) and "NS" in ns:
+        it = ns["NS"]
+    elif isinstance(ns, set):
+        it = ns
+    elif isinstance(ns, list):
         it = ns
     else:
-        it = ns if isinstance(ns, list) else []
-    for h in it:
-        out.add(int(h) if not isinstance(h, Decimal) else int(h))
-    return out
+        it = []
 
-def is_trusted(item: dict, field_key: str, value: str) -> bool:
-    if field_key == "work_hours_utc":
+    for h in it:
         try:
-            return int(value) in _trusted_hours_set(item)
+            out.add(int(h) if not isinstance(h, Decimal) else int(h))
         except Exception:
-            return False
-    return value in (item.get(field_key) or [])
+            pass
+    return out
 
 def clear_candidate(username: str, field_key: str, value: str, table):
     try:

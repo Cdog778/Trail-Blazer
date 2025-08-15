@@ -101,7 +101,7 @@ def process_log_file(bucket, key):
                     continue
 
                 item = table.get_item(Key={"username": username}).get("Item", {})
-                if is_trusted(item, base_key, val):  
+                if is_trusted(item, base_key, val):
                     continue
 
                 record_candidate(username, base_key, val, table, PROM_THRESH)
@@ -117,45 +117,47 @@ def process_log_file(bucket, key):
                     event_hour = datetime.fromisoformat(timestamp.replace("Z", "+00:00")).hour
                     hour_str = str(event_hour).zfill(2)
 
-                    
                     item = table.get_item(Key={"username": username}).get("Item", {})
-                    
                     if int(hour_str) not in _trusted_hours_set(item):
                         record_candidate(username, "work_hours_utc", hour_str, table, PROM_THRESH)
-                   
-                    item = table.get_item(Key={"username": username}).get("Item", {})
-                    if should_promote_candidate(item, "work_hours_utc", hour_str, PROM_THRESH):
-                        table.update_item(
-                            Key={"username": username},
-                            UpdateExpression="ADD work_hours_utc_ns :h",
-                            ExpressionAttributeValues={":h": set([event_hour])}  
-                        )
-                        clear_candidate(username, "work_hours_utc", hour_str, table)
-                        alert_promotion(username, "work_hours_utc", hour_str, write_alert)
 
+                        item = table.get_item(Key={"username": username}).get("Item", {})
+                        if should_promote_candidate(item, "work_hours_utc", hour_str, PROM_THRESH):
+                            table.update_item(
+                                Key={"username": username},
+                                UpdateExpression="ADD work_hours_utc_ns :h",
+                                ExpressionAttributeValues={":h": set([event_hour])}  
+                            )
+                            clear_candidate(username, "work_hours_utc", hour_str, table)
+                            alert_promotion(username, "work_hours_utc", hour_str, write_alert)
                 except Exception as e:
                     print(f"[WARN] Could not parse eventTime for work-hours: {e}", flush=True)
 
             if record.get("eventName") == "AssumeRole":
                 role_arn = record.get("requestParameters", {}).get("roleArn")
                 if role_arn:
-                    record_candidate(username, "assumed_roles", role_arn, table, PROM_THRESH)
-
+                    # Skip if already trusted
                     item = table.get_item(Key={"username": username}).get("Item", {})
-                    if should_promote_candidate(item, "assumed_roles", role_arn, PROM_THRESH):
-                        promote_candidate(username, "assumed_roles", role_arn, table)
-                        alert_promotion(username, "assumed_roles", role_arn, write_alert)
+                    if not is_trusted(item, "assumed_roles", role_arn):
+                        record_candidate(username, "assumed_roles", role_arn, table, PROM_THRESH)
+
+                        item = table.get_item(Key={"username": username}).get("Item", {})
+                        if should_promote_candidate(item, "assumed_roles", role_arn, PROM_THRESH):
+                            promote_candidate(username, "assumed_roles", role_arn, table)
+                            alert_promotion(username, "assumed_roles", role_arn, write_alert)
 
             service = record.get("eventSource", "unknown").replace(".amazonaws.com", "")
             action = record.get("eventName", "unknown")
             service_action = f"{service}:{action}"
 
-            record_candidate(username, "actions", service_action, table, PROM_THRESH)
-
             item = table.get_item(Key={"username": username}).get("Item", {})
-            if should_promote_candidate(item, "actions", service_action, PROM_THRESH):
-                promote_candidate(username, "actions", service_action, table)
-                alert_promotion(username, "actions", service_action, write_alert)
+            if not is_trusted(item, "actions", service_action):
+                record_candidate(username, "actions", service_action, table, PROM_THRESH)
+
+                item = table.get_item(Key={"username": username}).get("Item", {})
+                if should_promote_candidate(item, "actions", service_action, PROM_THRESH):
+                    promote_candidate(username, "actions", service_action, table)
+                    alert_promotion(username, "actions", service_action, write_alert)
 
         except Exception as e:
             print(f"[ERROR] Failed to process record {i + 1}: {e}", flush=True)
