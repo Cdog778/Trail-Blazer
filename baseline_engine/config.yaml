@@ -10,7 +10,7 @@ s3:
 dynamodb:
   baseline_table: BaselineData                  # from var.baseline_table_name
   promotion:
-    min_count: 3
+    min_count: 1
     max_age_days: 7
   processed_table: ProcessedS3Logs              # optional, if used
   processed_key_ttl_days: 1

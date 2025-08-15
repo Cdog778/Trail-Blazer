@@ -87,7 +87,6 @@ def process_log_file(bucket, key):
                     "regions": [],
                     "services": [],
                     "actions": [],
-                    "work_hours_utc": [],
                     "assumed_roles": [],
                     "candidates": {}
                 })
@@ -104,7 +103,7 @@ def process_log_file(bucket, key):
                 if should_promote_candidate(item, base_key, val, PROM_THRESH):
                     promote_candidate(username, base_key, val, table)
                     alert_promotion(username, base_key, val, write_alert)
-            
+
             timestamp = record.get("eventTime")
             if timestamp:
                 try:
@@ -118,13 +117,12 @@ def process_log_file(bucket, key):
                         table.update_item(
                             Key={"username": username},
                             UpdateExpression="ADD work_hours_utc_ns :h",
-                            ExpressionAttributeValues={":h": set([event_hour])}
+                            ExpressionAttributeValues={":h": set([event_hour])}  
                         )
                         alert_promotion(username, "work_hours_utc", hour_str, write_alert)
 
                 except Exception as e:
                     print(f"[WARN] Could not parse eventTime for work-hours: {e}", flush=True)
-
 
             if record.get("eventName") == "AssumeRole":
                 role_arn = record.get("requestParameters", {}).get("roleArn")
