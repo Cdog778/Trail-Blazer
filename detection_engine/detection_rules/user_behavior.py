@@ -1,5 +1,20 @@
 from datetime import datetime
-from utils.config_loader import load_config
+from decimal import Decimal
+
+def _trusted_hours_from_ns(baseline_item):
+    out = set()
+    ns = baseline_item.get("work_hours_utc_ns")
+    if not ns:
+        return out
+
+    if isinstance(ns, set):
+        for h in ns:
+            out.add(int(h) if not isinstance(h, Decimal) else int(h))
+    elif isinstance(ns, list):
+        for h in ns:
+            out.add(int(h) if not isinstance(h, Decimal) else int(h))
+    return out
+
 
 def detect_user_behavior_anomaly(record, baseline, write_alert, username):
     event_name  = record.get("eventName", "unknown")
@@ -10,36 +25,37 @@ def detect_user_behavior_anomaly(record, baseline, write_alert, username):
     service     = record.get("eventSource", "unknown")
 
     anomalies = []
-    candidates = baseline.get("candidates", {})
+    candidates = baseline.get("candidates", {}) or {}
 
     def is_candidate(field, value):
-        return value in candidates.get(field, {})
+        return value in (candidates.get(field, {}) or {})
 
-    config = load_config()
     event_hour = None
+    hour_key = None
     try:
-        event_hour = str(datetime.fromisoformat(timestamp.replace("Z", "+00:00")).hour).zfill(2)
+        event_hour = datetime.fromisoformat(timestamp.replace("Z", "+00:00")).hour
+        hour_key = str(event_hour).zfill(2)
     except Exception as e:
         print(f"[WARN] Failed to parse hour from timestamp: {e}", flush=True)
 
-    allowed_hours = config.get("users", {}).get(username, {}).get("allowed_hours_utc") or \
-                    config.get("defaults", {}).get("allowed_hours_by_region", {}).get(region) or \
-                    baseline.get("work_hours_utc", [])
-
-    if source_ip and source_ip not in baseline.get("known_ips", []) and not is_candidate("known_ips", source_ip):
+    if source_ip and source_ip not in (baseline.get("known_ips", []) or []) and not is_candidate("known_ips", source_ip):
         anomalies.append(("sourceIPAddress", source_ip))
 
-    if user_agent and user_agent not in baseline.get("user_agents", []) and not is_candidate("user_agents", user_agent):
+    if user_agent and user_agent not in (baseline.get("user_agents", []) or []) and not is_candidate("user_agents", user_agent):
         anomalies.append(("userAgent", user_agent))
 
-    if region and region not in baseline.get("regions", []) and not is_candidate("regions", region):
+    if region and region not in (baseline.get("regions", []) or []) and not is_candidate("regions", region):
         anomalies.append(("awsRegion", region))
 
-    if service and service not in baseline.get("services", []) and not is_candidate("services", service):
+    if service and service not in (baseline.get("services", []) or []) and not is_candidate("services", service):
         anomalies.append(("eventSource", service))
 
-    if event_hour and allowed_hours and event_hour not in allowed_hours:
-        anomalies.append(("work_hours_utc", event_hour))
+    if event_hour is not None:
+        trusted_hours = _trusted_hours_from_ns(baseline)
+        if trusted_hours:
+            hour_is_candidate = hour_key in (candidates.get("work_hours_utc", {}) or {})
+            if (event_hour not in trusted_hours) and not hour_is_candidate:
+                anomalies.append(("work_hours_utc", hour_key))
 
     if anomalies:
         print(f"[ALERT] User behavior anomaly detected for {username}: {anomalies}", flush=True)
