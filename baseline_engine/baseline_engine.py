@@ -15,7 +15,7 @@ from utils.baseline import (
     alert_promotion,
     is_trusted,
     clear_candidate,
-    trusted_hours_set
+    _trusted_hours_set
 )
 from utils.alert_writer import write_alert
 from utils.identity import classify_identity, should_suppress_actor  
