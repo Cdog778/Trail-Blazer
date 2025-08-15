@@ -3,7 +3,7 @@ import gzip
 import json
 import time
 from datetime import datetime
-import ipaddress  # NEW
+import ipaddress  
 
 from utils.config_loader import load_config
 from utils.suppression import is_suppressed
@@ -25,8 +25,7 @@ TABLE_NAME  = cfg["dynamodb"]["baseline_table"]
 PROM_THRESH = cfg["dynamodb"]["promotion"]
 
 SUPPRESSED_ACTOR_TYPES = set(
-    cfg.get("baseline", {}).get("suppressed_actor_types", ["service", "anonymous"])
-)
+    cfg.get("baseline", {}).get("suppressed_actor_types", ["service", "anonymous"]))
 
 s3    = boto3.client("s3", region_name=REGION)
 sqs   = boto3.client("sqs", region_name=REGION)
@@ -60,6 +59,7 @@ def process_log_file(bucket, key):
     for i, record in enumerate(log_data.get("Records", [])):
         try:
             identity = record.get("userIdentity", {})
+
             username, actor_type = classify_identity(identity)
             print(f"[DEBUG] Baseline actor resolved: id={username}, type={actor_type}", flush=True)
 
@@ -104,20 +104,27 @@ def process_log_file(bucket, key):
                 if should_promote_candidate(item, base_key, val, PROM_THRESH):
                     promote_candidate(username, base_key, val, table)
                     alert_promotion(username, base_key, val, write_alert)
-
+            
             timestamp = record.get("eventTime")
             if timestamp:
                 try:
                     event_hour = datetime.fromisoformat(timestamp.replace("Z", "+00:00")).hour
                     hour_str = str(event_hour).zfill(2)
+
                     record_candidate(username, "work_hours_utc", hour_str, table, PROM_THRESH)
 
                     item = table.get_item(Key={"username": username}).get("Item", {})
                     if should_promote_candidate(item, "work_hours_utc", hour_str, PROM_THRESH):
-                        promote_candidate(username, "work_hours_utc", hour_str, table)
+                        table.update_item(
+                            Key={"username": username},
+                            UpdateExpression="ADD work_hours_utc_ns :h",
+                            ExpressionAttributeValues={":h": set([event_hour])}
+                        )
                         alert_promotion(username, "work_hours_utc", hour_str, write_alert)
+
                 except Exception as e:
                     print(f"[WARN] Could not parse eventTime for work-hours: {e}", flush=True)
+
 
             if record.get("eventName") == "AssumeRole":
                 role_arn = record.get("requestParameters", {}).get("roleArn")

@@ -8,6 +8,7 @@ from utils.suppression import is_suppressed
 from utils.alert_writer import write_alert
 from utils.burn_in import is_in_burn_in_period
 from utils.identity import classify_identity, should_suppress_actor  
+from utils.hours import get_trusted_hours_legacy
 
 from detection_rules.assume_role import detect_assume_role
 from detection_rules.privilege_escalation import detect_privilege_escalation
@@ -62,7 +63,7 @@ def process_log_file(bucket, key):
                 continue
 
             user_agent = record.get("userAgent", "unknown")
-            source_ip = record.get("sourceIPAddress", "unknown")
+            source_ip  = record.get("sourceIPAddress", "unknown")
             print(f"[DEBUG] User: {username}, Agent: {user_agent}", flush=True)
 
             if is_suppressed(username, user_agent):
@@ -80,20 +81,51 @@ def process_log_file(bucket, key):
                         "severity": "info",
                         "category": "iam",
                         "actor_type": actor_type,
-                        "timestamp": record.get("eventTime"),
+                        "timestamp": record.get("eventTime")
                     },
                     details={
                         "user": username,
                         "event": record.get("eventName"),
                         "source_ip": source_ip,
-                        "user_agent": user_agent,
-                    },
+                        "user_agent": user_agent
+                    }
                 )
                 continue
 
             if is_in_burn_in_period(baseline):
                 print(f"[SUPPRESS] {username} is in burn-in period — skipping detection", flush=True)
                 continue
+
+            evt_ts = record.get("eventTime")
+            if evt_ts:
+                try:
+                evt_hour = datetime.fromisoformat(evt_ts.replace("Z", "+00:00")).hour
+                trusted_hours = get_baselined_hours_ns(baseline)
+
+                if trusted_hours and (evt_hour not in trusted_hours):
+                    candidates = (baseline.get("candidates") or {}).get("work_hours_utc", {})
+                    hour_key = str(evt_hour).zfill(2)
+                    if hour_key not in candidates:
+                        write_alert(
+                            alert_type="Off-hours Activity",
+                            metadata={
+                                "severity": "medium",
+                                "category": "behavior",
+                                "actor_type": actor_type,
+                                "timestamp": evt_ts,
+                            },
+                            details={
+                                "user": username,
+                                "event": record.get("eventName"),
+                                "event_hour_utc": evt_hour,
+                                "trusted_hours_utc": sorted(trusted_hours),
+                                "source_ip": record.get("sourceIPAddress", "unknown"),
+                                "user_agent": record.get("userAgent", "unknown"),
+                            }
+                        )
+            except Exception:
+                pass
+
 
             detect_assume_role(record, baseline, write_alert, username)
             detect_privilege_escalation(record, baseline, write_alert, username)
