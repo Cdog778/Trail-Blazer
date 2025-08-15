@@ -12,7 +12,10 @@ from utils.baseline import (
     record_candidate,
     should_promote_candidate,
     promote_candidate,
-    alert_promotion
+    alert_promotion,
+    is_trusted,
+    clear_candidate,
+    trusted_hours_set
 )
 from utils.alert_writer import write_alert
 from utils.identity import classify_identity, should_suppress_actor  
@@ -97,11 +100,15 @@ def process_log_file(bucket, key):
                 if not val or is_suppressed(username, val):
                     continue
 
+                item = table.get_item(Key={"username": username}).get("Item", {})
+                if is_trusted(item, base_key, val):  
+                    continue
+
                 record_candidate(username, base_key, val, table, PROM_THRESH)
 
                 item = table.get_item(Key={"username": username}).get("Item", {})
                 if should_promote_candidate(item, base_key, val, PROM_THRESH):
-                    promote_candidate(username, base_key, val, table)
+                    promote_candidate(username, base_key, val, table)  
                     alert_promotion(username, base_key, val, write_alert)
 
             timestamp = record.get("eventTime")
@@ -110,8 +117,12 @@ def process_log_file(bucket, key):
                     event_hour = datetime.fromisoformat(timestamp.replace("Z", "+00:00")).hour
                     hour_str = str(event_hour).zfill(2)
 
-                    record_candidate(username, "work_hours_utc", hour_str, table, PROM_THRESH)
-
+                    
+                    item = table.get_item(Key={"username": username}).get("Item", {})
+                    
+                    if int(hour_str) not in _trusted_hours_set(item):
+                        record_candidate(username, "work_hours_utc", hour_str, table, PROM_THRESH)
+                   
                     item = table.get_item(Key={"username": username}).get("Item", {})
                     if should_promote_candidate(item, "work_hours_utc", hour_str, PROM_THRESH):
                         table.update_item(
@@ -119,6 +130,7 @@ def process_log_file(bucket, key):
                             UpdateExpression="ADD work_hours_utc_ns :h",
                             ExpressionAttributeValues={":h": set([event_hour])}  
                         )
+                        clear_candidate(username, "work_hours_utc", hour_str, table)
                         alert_promotion(username, "work_hours_utc", hour_str, write_alert)
 
                 except Exception as e:

@@ -1,6 +1,7 @@
 import re
 import time
 from datetime import datetime
+from decimal import Decimal  # NEW
 
 def normalize_user(identity):
     if not identity:
@@ -24,13 +25,44 @@ def _now_ts():
 def _days_to_seconds(days):
     return days * 24 * 3600
 
+def _trusted_hours_set(item: dict) -> set[int]:
+    out = set()
+    ns = item.get("work_hours_utc_ns")
+    if not ns:
+        return out
+    if isinstance(ns, set):
+        it = ns
+    else:
+        it = ns if isinstance(ns, list) else []
+    for h in it:
+        out.add(int(h) if not isinstance(h, Decimal) else int(h))
+    return out
+
+def is_trusted(item: dict, field_key: str, value: str) -> bool:
+    if field_key == "work_hours_utc":
+        try:
+            return int(value) in _trusted_hours_set(item)
+        except Exception:
+            return False
+    return value in (item.get(field_key) or [])
+
+def clear_candidate(username: str, field_key: str, value: str, table):
+    try:
+        table.update_item(
+            Key={"username": username},
+            UpdateExpression="REMOVE candidates.#f.#v",
+            ExpressionAttributeNames={"#f": field_key, "#v": value}
+        )
+    except Exception:
+        pass
+
 def record_candidate(username, field_key, value, table, thresholds):
     now_ts = _now_ts()
     now_hr = datetime.utcfromtimestamp(now_ts).isoformat() + "Z"
     ttl    = now_ts + _days_to_seconds(thresholds["max_age_days"] * 2)
 
     item = table.get_item(Key={"username": username}).get("Item", {})
-    if value in item.get(field_key, []):
+    if is_trusted(item, field_key, value):
         return
 
     try:
@@ -86,7 +118,8 @@ def record_candidate(username, field_key, value, table, thresholds):
         print(f"[ERROR] Failed to record candidate {field_key}={value} for {username}: {e}", flush=True)
 
 def should_promote_candidate(item, field_key, value, thresholds):
-    if value in item.get(field_key, []):
+    # Already trusted? don't promote again
+    if is_trusted(item, field_key, value):
         return False
 
     c = item.get("candidates", {}).get(field_key, {}).get(value)
@@ -111,11 +144,7 @@ def promote_candidate(username, field_key, value, table):
             ExpressionAttributeValues={":new_ss": new_ss}
         )
 
-    table.update_item(
-        Key={"username": username},
-        UpdateExpression="REMOVE candidates.#f.#v",
-        ExpressionAttributeNames={"#f": field_key, "#v": value}
-    )
+    clear_candidate(username, field_key, value, table)
 
     print(f"[INFO] Promoted value '{value}' for user '{username}' under field '{field_key}'", flush=True)
 
