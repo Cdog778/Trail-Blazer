@@ -99,33 +99,32 @@ def process_log_file(bucket, key):
             evt_ts = record.get("eventTime")
             if evt_ts:
                 try:
-                evt_hour = datetime.fromisoformat(evt_ts.replace("Z", "+00:00")).hour
-                trusted_hours = get_baselined_hours_ns(baseline)
+                    evt_hour = datetime.fromisoformat(evt_ts.replace("Z", "+00:00")).hour
+                    trusted_hours = get_baselined_hours_ns(baseline)
 
-                if trusted_hours and (evt_hour not in trusted_hours):
-                    candidates = (baseline.get("candidates") or {}).get("work_hours_utc", {})
-                    hour_key = str(evt_hour).zfill(2)
-                    if hour_key not in candidates:
-                        write_alert(
-                            alert_type="Off-hours Activity",
-                            metadata={
-                                "severity": "medium",
-                                "category": "behavior",
-                                "actor_type": actor_type,
-                                "timestamp": evt_ts,
-                            },
-                            details={
-                                "user": username,
-                                "event": record.get("eventName"),
-                                "event_hour_utc": evt_hour,
-                                "trusted_hours_utc": sorted(trusted_hours),
-                                "source_ip": record.get("sourceIPAddress", "unknown"),
-                                "user_agent": record.get("userAgent", "unknown"),
-                            }
-                        )
-            except Exception:
-                pass
-
+                    if trusted_hours and (evt_hour not in trusted_hours):
+                        candidates = (baseline.get("candidates") or {}).get("work_hours_utc", {})
+                        hour_key = str(evt_hour).zfill(2)
+                        if hour_key not in candidates:
+                            write_alert(
+                                alert_type="Off-hours Activity",
+                                metadata={
+                                    "severity": "medium",
+                                    "category": "behavior",
+                                    "actor_type": actor_type,
+                                    "timestamp": evt_ts,
+                                },
+                                details={
+                                    "user": username,
+                                    "event": record.get("eventName"),
+                                    "event_hour_utc": evt_hour,
+                                    "trusted_hours_utc": sorted(trusted_hours),
+                                    "source_ip": record.get("sourceIPAddress", "unknown"),
+                                    "user_agent": record.get("userAgent", "unknown"),
+                                }
+                            )
+                except Exception:
+                    pass
 
             detect_assume_role(record, baseline, write_alert, username)
             detect_privilege_escalation(record, baseline, write_alert, username)
