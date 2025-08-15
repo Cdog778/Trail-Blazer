@@ -47,6 +47,14 @@ def _trusted_hours_set(item: dict) -> set[int]:
             pass
     return out
 
+def is_trusted(item: dict, field_key: str, value: str) -> bool:
+    if field_key == "work_hours_utc":
+        try:
+            return int(value) in _trusted_hours_set(item)
+        except Exception:
+            return False
+    return value in (item.get(field_key) or [])
+
 def clear_candidate(username: str, field_key: str, value: str, table):
     try:
         table.update_item(
