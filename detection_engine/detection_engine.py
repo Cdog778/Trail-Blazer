@@ -8,7 +8,7 @@ from utils.suppression import is_suppressed
 from utils.alert_writer import write_alert
 from utils.burn_in import is_in_burn_in_period
 from utils.identity import classify_identity, should_suppress_actor  
-from utils.hours import get_trusted_hours_legacy
+from utils.hours import get_baselined_hours_ns
 
 from detection_rules.assume_role import detect_assume_role
 from detection_rules.privilege_escalation import detect_privilege_escalation
